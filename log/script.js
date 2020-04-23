@@ -11,7 +11,7 @@ let timestampStart;
 let statsInterval = null;
 let file;
 
-const chunkSize = 600000;
+const chunkSize = 16000;
 
 const bitrateDiv = document.querySelector('div#bitrate');
 const fileInput = document.querySelector('input#fileInput');
@@ -351,10 +351,11 @@ function startWebRTC(isOfferer) {
 }
 
 function localDescCreated(desc) {
-    pc.setLocalDescription(
-        desc,
-        () => sendMessage({'sdp': pc.localDescription}),
-        onError
-    );
-    pc.addEventListener('datachannel', receiveChannelCallback);
+  console.log('localDescCreated', desc);
+  pc.setLocalDescription(
+      desc,
+      () => sendMessage({'sdp': pc.localDescription}),
+      onError
+  );
+  pc.addEventListener('datachannel', receiveChannelCallback);
 }
