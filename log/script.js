@@ -13,7 +13,7 @@ let timestampStart;
 let statsInterval = null;
 let file;
 
-const chunkSize = 32000;
+const chunkSize = 90000;
 
 let isSender = true;
 const bitrateDiv = document.querySelector('div#bitrate');
