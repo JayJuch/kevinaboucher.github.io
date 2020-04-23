@@ -71,7 +71,7 @@ async function createDataConnection(propagate) {
 
 function onAckReceiveData(event) {
   console.log(`Received ack message: ${event}`);
-  readSlice(event.data)
+  readSlice(parseInt(event.data));
 }
 
 async function onSendChannelStateChange() {
