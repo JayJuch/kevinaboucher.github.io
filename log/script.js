@@ -10,6 +10,9 @@ let timestampPrev = 0;
 let timestampStart;
 let statsInterval = null;
 let file;
+
+const chunkSize = 600000;
+
 const bitrateDiv = document.querySelector('div#bitrate');
 const fileInput = document.querySelector('input#fileInput');
 const abortButton = document.querySelector('button#abortButton');
@@ -82,7 +85,7 @@ function sendData() {
   }
   sendProgress.max = file.size;
   receiveProgress.max = file.size;
-  const chunkSize = 1024;
+
   fileReader = new FileReader();
   let offset = 0;
   fileReader.addEventListener('error', error => console.error('Error reading file:', error));
@@ -92,29 +95,18 @@ function sendData() {
     sendChannel.send(e.target.result);
     offset += e.target.result.byteLength;
     sendProgress.value = offset;
-    if (offset < file.size) {
-      readSlice(offset);
-    } else {
+    if (offset >= file.size) {
       sendStatusDiv.innerHTML = `<strong>File sent successfully:</strong> ${file.name} (${file.size} bytes)`;
     }
   });
-  const readSlice = o => {
-    // console.log('readSlice ', o);
-    const slice = file.slice(offset, o + chunkSize);
-    fileReader.readAsArrayBuffer(slice);
-  };
   readSlice(0);
 }
 
-function sleep(milliseconds) { 
-    let timeStart = new Date().getTime(); 
-    while (true) { 
-        let elapsedTime = new Date().getTime() - timeStart; 
-        if (elapsedTime > milliseconds) { 
-            break; 
-        } 
-    } 
-} 
+function readSlice(offset) {
+      console.log('readSlice ', offset);
+      const slice = file.slice(offset, offset + chunkSize);
+      fileReader.readAsArrayBuffer(slice);
+}
 
 function closeDataChannels() {
   console.log('Closing data channels');
@@ -178,7 +170,7 @@ function receiveChannelCallback(event) {
 }
 
 function onReceiveMessageCallback(event) {
-  //console.log(`Received Message ${event.data.byteLength}`);
+  console.log(`Received RTC Data ${event.data.byteLength}`);
   receiveBuffer.push(event.data);
   receivedSize += event.data.byteLength;
 
@@ -206,6 +198,9 @@ function onReceiveMessageCallback(event) {
     }
 
     closeDataChannels();
+  } else {
+    console.log(`Send Message sendNextSlice ${receivedSize}`);
+    sendMessage({'sendNextSlice': receivedSize})
   }
 }
 
@@ -348,6 +343,9 @@ function startWebRTC(isOfferer) {
             sendData(); // OK to send file
         } else if (message.createDataConnection) {
             createDataConnection(false);
+        } else if (message.sendNextSlice) {
+          offset = message.sendNextSlice;
+          readSlice(offset);
         }
     });
 }
