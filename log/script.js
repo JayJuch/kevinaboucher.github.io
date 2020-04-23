@@ -2,6 +2,8 @@ let localConnection;
 let remoteConnection;
 let sendChannel;
 let receiveChannel;
+let ackSendChannel;
+let ackReceiveChannel;
 let fileReader;
 let receiveBuffer = [];
 let receivedSize = 0;
@@ -54,12 +56,22 @@ async function createDataConnection(propagate) {
   sendChannel.binaryType = 'arraybuffer';
   console.log('Created send data channel');
 
+  ackReceiveChannel = pc.createDataChannel('ackChannel')
+  // ackChannel.binaryType = 'arraybuffer';
+  console.log('Created receive data channel');
+
   if (propagate) {
     sendChannel.addEventListener('open', onSendChannelStateChange);
     sendChannel.addEventListener('close', onSendChannelStateChange);
     sendChannel.addEventListener('error', error => console.error('Error in sendChannel:', error));
     sendMessage({'createDataConnection': true});
+    ackReceiveChannel.onmessage = onAckReceiveData
   }
+}
+
+function onAckReceiveData(event) {
+  console.log(`Received ack message: ${event}`);
+  readSlice(event.data)
 }
 
 async function onSendChannelStateChange() {
@@ -70,6 +82,8 @@ async function onSendChannelStateChange() {
     sendMessage({'file': { name: file.name, size: file.size, type: file.type, lastModified: file.lastModified }});
   }
 }
+
+
 
 function sendData() {
   console.log(`File is ${[file.name, file.size, file.type, file.lastModified].join(' ')}`);
@@ -154,18 +168,23 @@ async function gotRemoteDescription(desc) {
 
 function receiveChannelCallback(event) {
   console.log('Receive Channel Callback');
-  receiveChannel = event.channel;
-  receiveChannel.binaryType = 'arraybuffer';
-  receiveChannel.onmessage = onReceiveMessageCallback;
-  receiveChannel.onopen = onReceiveChannelStateChange;
-  receiveChannel.onclose = onReceiveChannelStateChange;
 
-  receivedSize = 0;
-  downloadAnchor.textContent = '';
-  downloadAnchor.removeAttribute('download');
-  if (downloadAnchor.href) {
-    URL.revokeObjectURL(downloadAnchor.href);
-    downloadAnchor.removeAttribute('href');
+  if (event.channel.label === 'sendDataChannel') {
+    receiveChannel = event.channel;
+    receiveChannel.binaryType = 'arraybuffer';
+    receiveChannel.onmessage = onReceiveMessageCallback;
+    receiveChannel.onopen = onReceiveChannelStateChange;
+    receiveChannel.onclose = onReceiveChannelStateChange;
+  
+    receivedSize = 0;
+    downloadAnchor.textContent = '';
+    downloadAnchor.removeAttribute('download');
+    if (downloadAnchor.href) {
+      URL.revokeObjectURL(downloadAnchor.href);
+      downloadAnchor.removeAttribute('href');
+    }      
+  } else if (event.channel.label === 'ackChannel') {
+    ackSendChannel = event.channel;
   }
 }
 
@@ -200,7 +219,7 @@ function onReceiveMessageCallback(event) {
     closeDataChannels();
   } else {
     console.log(`Send Message sendNextSlice ${receivedSize}`);
-    sendMessage({'sendNextSlice': receivedSize})
+    ackSendChannel.send(receivedSize)
   }
 }
 
@@ -343,9 +362,6 @@ function startWebRTC(isOfferer) {
             sendData(); // OK to send file
         } else if (message.createDataConnection) {
             createDataConnection(false);
-        } else if (message.sendNextSlice) {
-          offset = message.sendNextSlice;
-          readSlice(offset);
         }
     });
 }
